@@ -1,0 +1,6 @@
+// Блокируемые игровые события
+
+player_radio
+player_team
+player_disconnect
+player_connect
