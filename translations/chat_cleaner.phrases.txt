@@ -1,0 +1,33 @@
+"Phrases"
+{
+	"User_Connect"
+	{
+		"en"		"Player {GREEN}%s{DEFAULT} has joined the server"
+		"ru"		"Игрок {GREEN}%s{DEFAULT} подключился к серверу"
+		"ua"		"Гравець {GREEN}%s{DEFAULT} приєднався до сервера"
+	}
+	"User_Leave"
+	{
+		"en"		"Player {GREEN}%s{DEFAULT} has left the server"
+		"ru"		"Игрок {GREEN}%s{DEFAULT} покинул сервер"
+		"ua"		"Гравець {GREEN}%s{DEFAULT} покинув сервер"
+	}
+	"ChangeTeam_SPEC"
+	{
+		"en"		"Player {GREEN}%s{DEFAULT} joined {GRAY}Spectators"
+		"ru"		"Игрок {GREEN}%s{DEFAULT} перешёл в {GRAY}Наблюдатели"
+		"ua"		"Гравець {GREEN}%s{DEFAULT} перейшов до {GRAY}Спостерігачів"
+	}
+	"ChangeTeam_T"
+	{
+		"en"		"Player {GREEN}%s{DEFAULT} joined {OLIVE}Terrorists"
+		"ru"		"Игрок {GREEN}%s{DEFAULT} перешёл в {OLIVE}Террористы"
+		"ua"		"Гравець {GREEN}%s{DEFAULT} перейшов до {OLIVE}Терористів"
+	}
+	"ChangeTeam_CT"
+	{
+		"en"		"Player {GREEN}%s{DEFAULT} joined {BLUE}Counter-Terrorists"
+		"ru"		"Игрок {GREEN}%s{DEFAULT} перешёл в {BLUE}Контр-Террористы"
+		"ua"		"Гравець {GREEN}%s{DEFAULT} перейшов до {BLUE}Контр-Терористів"
+	}
+}

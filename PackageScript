@@ -41,3 +41,6 @@ builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'chat_cleaner', 'set
 builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'chat_cleaner', 'blocked_events.txt'), configs_folder)
 builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'chat_cleaner', 'blocked_radio.txt'), configs_folder)
 builder.AddCopy(os.path.join(builder.sourcePath, 'configs', 'chat_cleaner', 'blocked_text.txt'), configs_folder)
+
+translations_folder = builder.AddFolder(os.path.join('addons', 'translations'))
+builder.AddCopy(os.path.join(builder.sourcePath, 'translations', 'chat_cleaner.phrases.txt'), translations_folder)

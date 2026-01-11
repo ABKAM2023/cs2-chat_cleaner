@@ -4,14 +4,16 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
+#include <map>
 #include "chat_cleaner.h"
 #include "metamod_oslink.h"
 #include "schemasystem/schemasystem.h"
 #include <cstring>
 #include "engine/igameeventsystem.h"
 #include "usermessages.pb.h"
-#include "filesystem.h"
+#include "filesystem.h" 
 #include "utlbuffer.h"
+#include <KeyValues.h>
 
 chat_cleaner g_chat_cleaner;
 PLUGIN_EXPOSE(chat_cleaner, g_chat_cleaner);
@@ -23,13 +25,20 @@ IGameEventManager2* g_pGameEventManager = nullptr;
 IGameEventSystem* g_pGameEventSystem = nullptr;
 
 IUtilsApi* g_pUtils;
+IPlayersApi* g_pPlayersApi;
+
+std::map<std::string, std::string> g_vecPhrases;
 
 static const char* kConfigPath = "addons/configs/chat_cleaner/settings.ini";
 static const char* kBlockedRadioPath = "addons/configs/chat_cleaner/blocked_radio.txt";
 static const char* kBlockedTextPath = "addons/configs/chat_cleaner/blocked_text.txt";
 static const char* kBlockedEventsPath = "addons/configs/chat_cleaner/blocked_events.txt";
+static const char* kTranslationsPath = "addons/translations/chat_cleaner.phrases.txt";
 
 static bool g_bDebugMode = false;
+static bool g_bCustomTeamMessages = true;
+static bool g_bCustomConnectMessages = true;
+static bool g_bCustomDisconnectMessages = true;
 
 std::unordered_set<std::string> g_BlockedRadioMessages;
 std::unordered_set<std::string> g_BlockedTextMessages;
@@ -89,8 +98,33 @@ static void LoadConfig()
 	}
 
 	g_bDebugMode = hKv->GetInt("DebugMode", 0) != 0;
-	ConMsg("[chat_cleaner] Config loaded: DebugMode=%d\n", g_bDebugMode ? 1 : 0);
+	g_bCustomTeamMessages = hKv->GetInt("CustomTeamMessages", 1) != 0;
+	g_bCustomConnectMessages = hKv->GetInt("CustomConnectMessages", 1) != 0;
+	g_bCustomDisconnectMessages = hKv->GetInt("CustomDisconnectMessages", 1) != 0;
+	
+	ConMsg("[chat_cleaner] Config loaded: DebugMode=%d, CustomTeamMessages=%d, CustomConnectMessages=%d, CustomDisconnectMessages=%d\n", 
+		g_bDebugMode ? 1 : 0, g_bCustomTeamMessages ? 1 : 0, g_bCustomConnectMessages ? 1 : 0, g_bCustomDisconnectMessages ? 1 : 0);
 	hKv->deleteThis();
+}
+
+static void LoadTranslations()
+{
+	g_vecPhrases.clear();
+	KeyValues::AutoDelete g_kvPhrases("Phrases");
+	
+	if (!g_kvPhrases->LoadFromFile(g_pFullFileSystem, kTranslationsPath))
+	{
+		ConColorMsg(Color(255, 165, 0, 255), "[chat_cleaner] Failed to load %s\n", kTranslationsPath);
+		return;
+	}
+
+	std::string szLanguage = std::string(g_pUtils->GetLanguage());
+	const char* g_pszLanguage = szLanguage.c_str();
+	
+	for (KeyValues *pKey = g_kvPhrases->GetFirstTrueSubKey(); pKey; pKey = pKey->GetNextTrueSubKey())
+		g_vecPhrases[std::string(pKey->GetName())] = std::string(pKey->GetString(g_pszLanguage));
+	
+	ConColorMsg(Color(0, 255, 0, 255), "[chat_cleaner] Loaded %zu phrases for language '%s'\n", g_vecPhrases.size(), g_pszLanguage);
 }
 
 static void LoadBlockedRadio()
@@ -217,6 +251,50 @@ bool FireEvent_Hook(IGameEvent* pEvent, bool bDontBroadcast)
 	RETURN_META_VALUE(MRES_IGNORED, true);
 }
 
+void OnPlayerTeam(const char* szName, IGameEvent* pEvent, bool bDontBroadcast)
+{
+	if (!g_bCustomTeamMessages || !g_pPlayersApi) return;
+	
+	int iSlot = pEvent->GetInt("userid");
+	int iTeam = pEvent->GetInt("team");
+	
+	if (iTeam > 0 && iTeam <= 3)
+	{
+		static const char* szPhrase[] = {"", "ChangeTeam_SPEC", "ChangeTeam_T", "ChangeTeam_CT"};
+		if (g_vecPhrases[szPhrase[iTeam]].size())
+		{
+			g_pUtils->PrintToChatAll(g_vecPhrases[szPhrase[iTeam]].c_str(), g_pPlayersApi->GetPlayerName(iSlot));
+		}
+	}
+}
+
+void OnPlayerConnect(const char* szName, IGameEvent* pEvent, bool bDontBroadcast)
+{
+	if (!g_bCustomConnectMessages) return;
+	
+	const char* playerName = pEvent->GetString("name");
+	if (g_vecPhrases["User_Connect"].size())
+	{
+		g_pUtils->PrintToChatAll(g_vecPhrases["User_Connect"].c_str(), playerName);
+	}
+}
+
+void OnPlayerDisconnect(const char* szName, IGameEvent* pEvent, bool bDontBroadcast)
+{
+	if (!g_bCustomDisconnectMessages || !g_pPlayersApi) return;
+	
+	int iSlot = pEvent->GetInt("userid");
+	int iReason = pEvent->GetInt("reason");
+	
+	if (iReason != 54)
+	{
+		if (g_vecPhrases["User_Leave"].size())
+		{
+			g_pUtils->PrintToChatAll(g_vecPhrases["User_Leave"].c_str(), g_pPlayersApi->GetPlayerName(iSlot));
+		}
+	}
+}
+
 CGameEntitySystem* GameEntitySystem()
 {
 	return g_pUtils->GetCGameEntitySystem();
@@ -227,6 +305,21 @@ void StartupServer()
 	g_pGameEntitySystem = GameEntitySystem();
 	g_pEntitySystem = g_pUtils->GetCEntitySystem();
 	gpGlobals = g_pUtils->GetCGlobalVars();
+	
+	if (g_bCustomTeamMessages)
+	{
+		g_pUtils->HookEvent(g_PLID, "player_team", OnPlayerTeam);
+	}
+	
+	if (g_bCustomConnectMessages)
+	{
+		g_pUtils->HookEvent(g_PLID, "player_connect", OnPlayerConnect);
+	}
+	
+	if (g_bCustomDisconnectMessages)
+	{
+		g_pUtils->HookEvent(g_PLID, "player_disconnect", OnPlayerDisconnect);
+	}
 }
 
 bool chat_cleaner::Load(PluginId id, ISmmAPI* ismm, char* error, size_t maxlen, bool late)
@@ -263,6 +356,11 @@ bool chat_cleaner::Unload(char *error, size_t maxlen)
 		SH_REMOVE_HOOK(IGameEventSystem, PostEventAbstract, g_pGameEventSystem, SH_STATIC(PostEventAbstract_Hook), false);
 	}
 	
+	if (g_pUtils)
+	{
+		g_pUtils->ClearAllHooks(g_PLID);
+	}
+	
 	ConVar_Unregister();
 	
 	return true;
@@ -281,6 +379,16 @@ void chat_cleaner::AllPluginsLoaded()
 		engine->ServerCommand(sBuffer.c_str());
 		return;
 	}
+	
+	g_pPlayersApi = (IPlayersApi *)g_SMAPI->MetaFactory(PLAYERS_INTERFACE, &ret, NULL);
+	if (ret == META_IFACE_FAILED)
+	{
+		ConColorMsg(Color(255, 165, 0, 255), "[%s] Warning: Missing Players API, custom messages may not work correctly\n", GetLogTag());
+		g_pPlayersApi = nullptr;
+	}
+	
+	LoadTranslations();
+	
 	g_pUtils->StartupServer(g_PLID, StartupServer);
 	
 	g_pGameEventManager = g_pUtils->GetGameEventManager();
@@ -298,7 +406,7 @@ const char* chat_cleaner::GetLicense()
 
 const char* chat_cleaner::GetVersion()
 {
-	return "1.0";
+	return "1.0.1";
 }
 
 const char* chat_cleaner::GetDate()
